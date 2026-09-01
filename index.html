@@ -96,6 +96,19 @@
     .overlay-card .row:last-of-type { border-bottom: none; }
     .overlay-card .glyph { font-size: 1.5rem; width: 34px; text-align: center; }
     .overlay-card .keys { font-size: 0.75rem; margin-top: 14px; color: var(--muted); }
+    .overlay-card .insta { margin-top: 16px; }
+    .overlay-card .insta label { display: block; font-size: 0.8rem; color: var(--muted); margin-bottom: 6px; }
+    .overlay-card .insta .opt { color: #5b6070; font-size: 0.72rem; }
+    .overlay-card .insta input {
+      width: 100%; padding: 12px 14px; border-radius: 10px; border: 1px solid #2c3245;
+      background: #0f1116; color: var(--text); font-size: 1rem;
+    }
+    .overlay-card .insta input::placeholder { color: #5b6070; }
+    .overlay-card .disclaimer {
+      margin-top: 14px; font-size: 0.78rem; color: var(--muted); line-height: 1.55;
+      border: 1px solid #262b38; border-radius: 10px; padding: 10px 12px; background: #12141b;
+    }
+    .overlay-card .disclaimer b { color: #f59e0b; }
     #startBtn {
       margin-top: 18px; width: 100%; padding: 15px; border: none; border-radius: 12px;
       background: var(--yes); color: #fff; font-size: 1.05rem; font-weight: 800; cursor: pointer;
@@ -137,12 +150,17 @@
       <div class="row"><span class="glyph">👈</span><span><b>Swipe left</b> — ❌ Very bad (doesn't match / garbled)</span></div>
       <div class="row"><span class="glyph">👆</span><span><b>Swipe up</b> — ⏭️ Skip</span></div>
       <div class="row"><span class="glyph">▶️</span><span>Tap <b>Play</b> (or press <b>Space</b>) to listen again</span></div>
+      <div class="insta">
+        <label for="instaInput">Instagram ID <span class="opt">(optional — for bounty contact)</span></label>
+        <input id="instaInput" type="text" placeholder="@yourhandle" maxlength="40" autocomplete="off">
+      </div>
+      <p class="disclaimer">⚠️ Please review <b>honestly and carefully</b> — false or random answers will be excluded. Reviewers with accurate reviews earn a <b>bounty</b>.</p>
       <p class="keys">Keyboard: <b>→</b> correct · <b>←</b> very bad · <b>↑</b> skip · <b>Space</b> play/pause</p>
       <button id="startBtn">Start reviewing ▶</button>
     </div>
   </div>
 
-  <script src="config.js?v=4"></script>
-  <script src="app.js?v=4"></script>
+  <script src="config.js?v=5"></script>
+  <script src="app.js?v=5"></script>
 </body>
 </html>

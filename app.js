@@ -17,6 +17,8 @@ let animating = false;
 
 let episodes = new Map(); // episode -> [chunk, ...] in order
 let currentEpisode = null;
+let myCount = 0;          // reviews done this session (yes/no)
+let myInstagram = "";     // optional, persisted in localStorage
 
 const el = (id) => document.getElementById(id);
 
@@ -174,6 +176,11 @@ function assignEpisode() {
 function doStart() {
   if (started) return;
   started = true;
+  const insta = (el("instaInput").value || "").trim();
+  if (insta) {
+    myInstagram = insta;
+    try { localStorage.setItem("instagram_id", insta); } catch (e) {}
+  }
   try { ctx().resume(); } catch (e) {}
   el("overlay").classList.add("hidden");
   renderStats();
@@ -204,6 +211,13 @@ async function loadManifest() {
 }
 
 function init() {
+  // remember their optional Instagram id from last time
+  try {
+    const saved = localStorage.getItem("instagram_id") || "";
+    myInstagram = saved;
+    el("instaInput").value = saved;
+  } catch (e) {}
+
   el("btnYes").onclick = () => judge("yes");
   el("btnNo").onclick = () => judge("no");
   el("btnSkip").onclick = () => skip();
@@ -277,13 +291,14 @@ function judge(verdict) {
   if (verdict === "yes") flash("✅", "Good", "#22c55e");
   else flash("❌", "Bad", "#ef4444");
   judgedIds.add(current.id);
+  myCount++;
   renderStats();
   stopAudio();
   swipeOut(verdict === "yes" ? "slide-right" : "slide-left", () => next());
   fetch(cfg.WORKER_URL + "/api/judge", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ id: current.id, verdict, reviewer: reviewerName }),
+    body: JSON.stringify({ id: current.id, verdict, reviewer: reviewerName, instagram: myInstagram }),
   }).catch(() => {});
 }
 
@@ -298,7 +313,7 @@ function skip() {
 
 function renderStats() {
   const left = chunks.length - judgedIds.size;
-  el("stats").textContent = "Left " + left + " clips";
+  el("stats").textContent = "You: " + myCount + " · Left: " + left;
 }
 
 init();
