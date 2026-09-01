@@ -19,6 +19,7 @@ let episodes = new Map(); // episode -> [chunk, ...] in order
 let currentEpisode = null;
 let myCount = 0;          // reviews done this session (yes/no)
 let myInstagram = "";     // optional, persisted in localStorage
+let teluguTimer = null;    // debounce for Latin->Telugu transliteration
 
 const el = (id) => document.getElementById(id);
 
@@ -151,6 +152,19 @@ function flash(emoji, word, color) {
   flashTimer = setTimeout(() => f.classList.remove("pop"), 500);
 }
 
+// Convert Latin -> Telugu in the transcript, keeping the cursor where it was.
+function transliterateNow(ta) {
+  const val = ta.value;
+  if (!window.Sanscript || !/[a-zA-Z]/.test(val)) return;
+  const pos = typeof ta.selectionStart === "number" ? ta.selectionStart : val.length;
+  try {
+    const before = window.Sanscript.t(val.slice(0, pos), "itrans", "telugu");
+    const after = window.Sanscript.t(val.slice(pos), "itrans", "telugu");
+    ta.value = before + after;
+    ta.setSelectionRange(before.length, before.length);
+  } catch (e) { /* leave as-is; the Telugu-only validation will reject it */ }
+}
+
 // ---------- episode assignment ----------
 function buildEpisodes() {
   episodes = new Map();
@@ -221,17 +235,14 @@ function init() {
     el("instaInput").value = saved;
   } catch (e) {}
 
-  // live Latin -> Telugu transliteration (Sanscript)
+  // Latin -> Telugu transliteration (debounced so a full word converts correctly,
+  // and the cursor stays in place while typing).
   el("transcript").addEventListener("input", () => {
     if (!window.Sanscript) return;
     const ta = el("transcript");
-    const val = ta.value;
-    if (!/[a-zA-Z]/.test(val)) return;
-    try {
-      const out = window.Sanscript.t(val, "itrans", "telugu");
-      ta.value = out;
-      ta.setSelectionRange(out.length, out.length);
-    } catch (e) { /* leave as-is; the Telugu-only validation will reject it */ }
+    if (!/[a-zA-Z]/.test(ta.value)) return;
+    if (teluguTimer) clearTimeout(teluguTimer);
+    teluguTimer = setTimeout(() => { teluguTimer = null; transliterateNow(ta); }, 600);
   });
 
   el("btnYes").onclick = () => judge("yes");
@@ -308,6 +319,8 @@ function fmt(s) { return Number(s).toFixed(1); }
 function judge(verdict) {
   if (!current || animating) return;
   const c = current;
+  // flush any pending transliteration before validating
+  if (teluguTimer) { clearTimeout(teluguTimer); teluguTimer = null; transliterateNow(el("transcript")); }
   const edited = (el("transcript").value || "").trim();
   // reject if empty or contains English letters (must be Telugu script)
   if (!edited || /[a-zA-Z]/.test(edited)) {
