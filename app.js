@@ -1,19 +1,22 @@
 // Reel-style audio-vs-transcript reviewer with loudness-normalized playback.
-// Swipe right = Correct, left = Very bad, up = Skip. Buttons + arrow keys work.
-// Chunks play in order (episode by episode), so every new reviewer starts from the beginning.
+// Each user gets a random episode and reviews it in order, skipping globally-reviewed clips.
+// Swipe right = Good, left = Bad, up = Skip.
 
 const cfg = window.CONFIG;
 const params = new URLSearchParams(location.search);
 const reviewerName = (params.get("name") || "anon").trim() || "anon";
 
 let chunks = [];          // all chunks, sorted episode -> file
-let judgedIds = new Set();// chunk ids judged this session (yes/no)
-let skippedLocal = new Set(); // recently skipped this session
+let judgedIds = new Set();// globally + locally reviewed chunk ids (yes/no)
+let skippedLocal = new Set(); // skipped this session
 let current = null;
 let ready = false;
 let pendingStart = false;
 let started = false;
 let animating = false;
+
+let episodes = new Map(); // episode -> [chunk, ...] in order
+let currentEpisode = null;
 
 const el = (id) => document.getElementById(id);
 
@@ -27,7 +30,7 @@ function ctx() {
 }
 
 const audioCache = new Map();
-const TARGET_RMS = 0.10;   // loudness target (~-20 dBFS) for consistent volume
+const TARGET_RMS = 0.10;
 const MAX_GAIN = 8.0;
 const PEAK_LIMIT = 0.95;
 
@@ -39,7 +42,6 @@ async function loadNormalized(c) {
   if (!resp.ok) throw new Error("audio " + resp.status);
   const arr = await resp.arrayBuffer();
   const buffer = await ctx().decodeAudioData(arr);
-  // loudness (RMS) normalization, peak-limited to avoid clipping
   let sum = 0, peak = 0;
   const ch = buffer.getChannelData(0);
   for (let i = 0; i < ch.length; i++) {
@@ -50,7 +52,7 @@ async function loadNormalized(c) {
   }
   const rms = Math.sqrt(sum / Math.max(1, ch.length));
   let gain = rms > 1e-6 ? TARGET_RMS / rms : 1.0;
-  if (peak > 0 && gain * peak > PEAK_LIMIT) gain = PEAK_LIMIT / peak; // don't clip
+  if (peak > 0 && gain * peak > PEAK_LIMIT) gain = PEAK_LIMIT / peak;
   gain = Math.min(Math.max(gain, 0.1), MAX_GAIN);
   const out = { buffer, gain };
   audioCache.set(c.id, out);
@@ -122,26 +124,53 @@ function swipeOut(dir, done) {
   const card = el("card");
   card.classList.add(dir);
   setTimeout(() => {
-    done();                       // advance to next chunk while off-screen
+    done();
     card.classList.remove(dir);
     card.style.transition = "none";
     card.style.transform = "";
-    void card.offsetWidth;        // reflow to reset without animating back
+    void card.offsetWidth;
     card.style.transition = "";
     card.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 180 });
     animating = false;
   }, 200);
 }
 
-// ---------- UI ----------
-function flash(symbol, color) {
+// ---------- emoji pop ----------
+let flashTimer = null;
+function flash(emoji, word, color) {
   const f = el("verdict-flash");
-  f.textContent = symbol;
+  f.innerHTML = '<div class="emoji">' + emoji + '</div><div class="word">' + word + '</div>';
   f.style.color = color;
-  f.style.opacity = "1";
-  setTimeout(() => { f.style.opacity = "0"; }, 180);
+  f.classList.add("pop");
+  if (flashTimer) clearTimeout(flashTimer);
+  flashTimer = setTimeout(() => f.classList.remove("pop"), 500);
 }
 
+// ---------- episode assignment ----------
+function buildEpisodes() {
+  episodes = new Map();
+  for (const c of chunks) {
+    if (!episodes.has(c.episode)) episodes.set(c.episode, []);
+    episodes.get(c.episode).push(c);
+  }
+}
+
+function assignEpisode() {
+  // random episode that still has unreviewed clips (ignoring local skips)
+  const avail = [];
+  for (const [ep, list] of episodes) {
+    if (list.some((c) => !judgedIds.has(c.id) && !skippedLocal.has(c.id))) avail.push(ep);
+  }
+  if (avail.length) return avail[Math.floor(Math.random() * avail.length)];
+  // fallback: allow episodes that only have locally-skipped clips
+  const avail2 = [];
+  for (const [ep, list] of episodes) {
+    if (list.some((c) => !judgedIds.has(c.id))) avail2.push(ep);
+  }
+  return avail2.length ? avail2[Math.floor(Math.random() * avail2.length)] : null;
+}
+
+// ---------- UI ----------
 function doStart() {
   if (started) return;
   started = true;
@@ -156,12 +185,19 @@ async function loadManifest() {
     const resp = await fetch(cfg.MANIFEST_URL);
     if (!resp.ok) throw new Error("manifest " + resp.status);
     chunks = (await resp.json()).chunks;
-    // sequential order: episode, then file number (so every user starts from the start)
     chunks.sort((a, b) => a.episode.localeCompare(b.episode) || a.file.localeCompare(b.file));
+    buildEpisodes();
   } catch (e) {
     chunks = [];
     console.error("manifest load failed:", e);
   }
+  // skip clips that were already reviewed (yes/no) by anyone
+  try {
+    const r = await fetch(cfg.WORKER_URL + "/api/judged");
+    const d = await r.json();
+    (d.judged || []).forEach((id) => judgedIds.add(id));
+  } catch (e) { /* worker offline -> no dedup */ }
+
   ready = true;
   el("startBtn").textContent = "Start reviewing ▶";
   if (pendingStart) doStart();
@@ -209,17 +245,17 @@ function next() {
     el("card").innerHTML = '<div class="done">⚠️ Could not load the clip list.<br>Please refresh the page.</div>';
     return;
   }
-  const pool = chunks.filter((c) => !judgedIds.has(c.id) && !skippedLocal.has(c.id));
+  const list = currentEpisode ? episodes.get(currentEpisode) : null;
+  const pool = list ? list.filter((c) => !judgedIds.has(c.id) && !skippedLocal.has(c.id)) : [];
   if (!pool.length) {
-    skippedLocal.clear();
-    const p2 = chunks.filter((c) => !judgedIds.has(c.id));
-    if (!p2.length) {
-      el("card").innerHTML = '<div class="done">🎉 You reviewed every clip!<br>Thanks — share the link with more friends.</div>';
+    currentEpisode = assignEpisode();
+    if (!currentEpisode) {
+      el("card").innerHTML = '<div class="done">🎉 All clips have been reviewed!<br>Thanks — share the link with more friends.</div>';
       return;
     }
-    return show(p2[0]); // first remaining in order
+    return next();
   }
-  show(pool[0]); // first unjudged in order
+  show(pool[0]);
 }
 
 function show(c) {
@@ -238,7 +274,8 @@ function fmt(s) { return Number(s).toFixed(1); }
 function judge(verdict) {
   if (!current || animating) return;
   animating = true;
-  flash(verdict === "yes" ? "✅" : "❌", verdict === "yes" ? "#22c55e" : "#ef4444");
+  if (verdict === "yes") flash("✅", "Good", "#22c55e");
+  else flash("❌", "Bad", "#ef4444");
   judgedIds.add(current.id);
   renderStats();
   stopAudio();
@@ -253,15 +290,15 @@ function judge(verdict) {
 function skip() {
   if (!current || animating) return;
   animating = true;
-  flash("⏭️", "#f59e0b");
+  flash("⏭️", "Skip", "#f59e0b");
   skippedLocal.add(current.id);
   stopAudio();
   swipeOut("slide-up", () => next());
 }
 
 function renderStats() {
-  const remaining = chunks.length - judgedIds.size;
-  el("stats").textContent = "Reviewed " + judgedIds.size + " · Left " + remaining;
+  const left = chunks.length - judgedIds.size;
+  el("stats").textContent = "Left " + left + " clips";
 }
 
 init();
