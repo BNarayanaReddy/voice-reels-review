@@ -85,12 +85,13 @@
     /* instructions overlay */
     #overlay {
       position: fixed; inset: 0; background: rgba(8, 9, 12, 0.96); z-index: 50;
-      display: flex; align-items: center; justify-content: center; padding: 22px;
+      display: flex; align-items: center; justify-content: center;
+      padding: 12px; overflow-y: auto; -webkit-overflow-scrolling: touch;
     }
     #overlay.hidden { display: none; }
     .overlay-card {
-      max-width: 440px; width: 100%; background: var(--card);
-      border: 1px solid #262b38; border-radius: 18px; padding: 26px 22px;
+      max-width: 440px; width: 100%; max-height: 96vh; overflow-y: auto;
+      background: var(--card); border: 1px solid #262b38; border-radius: 16px; padding: 20px 18px;
     }
     .overlay-card h1 { font-size: 1.3rem; margin-bottom: 6px; }
     .overlay-card p { color: var(--muted); font-size: 0.9rem; margin-bottom: 16px; line-height: 1.5; }
@@ -114,6 +115,17 @@
       border: 1px solid #262b38; border-radius: 10px; padding: 10px 12px; background: #12141b;
     }
     .overlay-card .disclaimer b { color: #f59e0b; }
+    .overlay-card .telnote {
+      margin-top: 12px; font-size: 0.78rem; color: var(--muted); line-height: 1.5;
+      border: 1px solid #262b38; border-radius: 10px; padding: 9px 12px; background: #12141b;
+    }
+    .overlay-card .telnote b { color: #8ab4ff; }
+    @media (max-width: 420px) {
+      .overlay-card { padding: 16px 14px; }
+      .overlay-card h1 { font-size: 1.15rem; }
+      .overlay-card .row { font-size: 0.9rem; padding: 8px 4px; }
+      .overlay-card .glyph { font-size: 1.25rem; width: 28px; }
+    }
     #startBtn {
       margin-top: 18px; width: 100%; padding: 15px; border: none; border-radius: 12px;
       background: var(--yes); color: #fff; font-size: 1.05rem; font-weight: 800; cursor: pointer;
@@ -154,7 +166,8 @@
       <div class="row"><span class="glyph">👉</span><span><b>Swipe right</b> — ✅ Correct (audio matches the text)</span></div>
       <div class="row"><span class="glyph">👈</span><span><b>Swipe left</b> — ❌ Very bad (doesn't match / garbled)</span></div>
       <div class="row"><span class="glyph">👆</span><span><b>Swipe up</b> — ⏭️ Skip</span></div>
-      <div class="row"><span class="glyph">✏️</span><span><b>Tap the transcript to correct it</b> — type in English letters and your keyboard converts to Telugu (Gboard). Telugu script only.</span></div>
+      <div class="row"><span class="glyph">✏️</span><span><b>Tap the transcript to correct it</b> — type English letters and they <b>auto-convert to Telugu</b> as you type.</span></div>
+      <p class="telnote">⌨️ <b>Telugu typing:</b> just type in English (e.g. <b>namaste</b> → నమస్తే). Or on your phone: <b>Gboard → Settings → Languages → add Telugu</b>, then switch with the 🌐 globe key.</p>
       <div class="row"><span class="glyph">▶️</span><span>Tap <b>Play</b> (or press <b>Space</b>) — audio loops so you can correct while listening</span></div>
       <div class="insta">
         <label for="instaInput">Instagram ID <span class="opt">(optional — for bounty contact)</span></label>
@@ -166,7 +179,8 @@
     </div>
   </div>
 
-  <script src="config.js?v=6"></script>
-  <script src="app.js?v=6"></script>
+  <script src="sanscript.js"></script>
+  <script src="config.js?v=7"></script>
+  <script src="app.js?v=7"></script>
 </body>
 </html>

@@ -221,6 +221,19 @@ function init() {
     el("instaInput").value = saved;
   } catch (e) {}
 
+  // live Latin -> Telugu transliteration (Sanscript)
+  el("transcript").addEventListener("input", () => {
+    if (!window.Sanscript) return;
+    const ta = el("transcript");
+    const val = ta.value;
+    if (!/[a-zA-Z]/.test(val)) return;
+    try {
+      const out = window.Sanscript.t(val, "itrans", "telugu");
+      ta.value = out;
+      ta.setSelectionRange(out.length, out.length);
+    } catch (e) { /* leave as-is; the Telugu-only validation will reject it */ }
+  });
+
   el("btnYes").onclick = () => judge("yes");
   el("btnNo").onclick = () => judge("no");
   el("btnSkip").onclick = () => skip();
