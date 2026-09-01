@@ -1,6 +1,6 @@
 # Cloudflare Worker configuration for the review backend.
 # Deploy with:  npx wrangler deploy
-name = "pavani-review"
+name = "female-voice-review"
 main = "worker.js"
 compatibility_date = "2025-01-01"
 

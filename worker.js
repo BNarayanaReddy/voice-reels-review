@@ -1,4 +1,4 @@
-// Cloudflare Worker — judgments backend for the Pavani transcript reviewer.
+// Cloudflare Worker — judgments backend for the voice transcript reviewer.
 // Uses Cloudflare D1 (SQLite). Bind the D1 database as `DB` in wrangler.toml.
 //
 // Endpoints:

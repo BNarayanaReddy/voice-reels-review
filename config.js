@@ -4,7 +4,7 @@ window.CONFIG = {
   AUDIO_BASE: "https://pub-279b543a6b394bd4bc52cb8be6435306.r2.dev/pavani_audio/",
 
   // Cloudflare Worker URL (judgments backend). Example:
-  // "https://pavani-review.YOUR-SUBDOMAIN.workers.dev"
+  // "https://female-voice-review.YOUR-SUBDOMAIN.workers.dev"
   WORKER_URL: "https://YOUR-WORKER.workers.dev",
 
   // Manifest lives next to this page (same origin).

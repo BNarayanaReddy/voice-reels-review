@@ -1,4 +1,4 @@
-# Pavani Reels Review — transcript validation site
+# Voice Reels Review — transcript validation site
 
 A mobile-friendly, reel-style site to validate Telugu audio↔transcript chunks.
 Friends just swipe — **no export, no accounts, nothing to install**.
@@ -39,7 +39,7 @@ GitHub Pages (static site)           Cloudflare R2 (audio)         Cloudflare Wo
 Edit `config.js`:
 ```js
 AUDIO_BASE: "https://pub-xxxx.r2.dev/pavani_audio/",
-WORKER_URL: "https://pavani-review.xxxx.workers.dev",
+WORKER_URL: "https://female-voice-review.xxxx.workers.dev",
 ```
 
 ### 3. Host the site on GitHub Pages
