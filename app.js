@@ -1,17 +1,19 @@
 // Reel-style audio-vs-transcript reviewer with loudness-normalized playback.
 // Swipe right = Correct, left = Very bad, up = Skip. Buttons + arrow keys work.
+// Chunks play in order (episode by episode), so every new reviewer starts from the beginning.
 
 const cfg = window.CONFIG;
 const params = new URLSearchParams(location.search);
 const reviewerName = (params.get("name") || "anon").trim() || "anon";
 
-let chunks = [];          // all chunks from manifest
-let judgedIds = new Set();// chunk ids already judged yes/no (global)
+let chunks = [];          // all chunks, sorted episode -> file
+let judgedIds = new Set();// chunk ids judged this session (yes/no)
 let skippedLocal = new Set(); // recently skipped this session
 let current = null;
-let ready = false;        // manifest loaded?
-let pendingStart = false; // user tapped start before manifest was ready
+let ready = false;
+let pendingStart = false;
 let started = false;
+let animating = false;
 
 const el = (id) => document.getElementById(id);
 
@@ -24,7 +26,7 @@ function ctx() {
   return audioCtx;
 }
 
-const audioCache = new Map(); // id -> { buffer, gain }
+const audioCache = new Map();
 const TARGET_PEAK = 0.89;
 const MAX_GAIN = 4.0;
 
@@ -54,6 +56,12 @@ let pausedAt = 0;
 let playing = false;
 let loading = false;
 
+function stopAudio() {
+  if (srcNode) { try { srcNode.stop(); } catch (e) {} }
+  srcNode = null;
+  playing = false;
+}
+
 async function play() {
   const c = current;
   if (!c || loading) return;
@@ -64,7 +72,7 @@ async function play() {
     const { buffer, gain } = await loadNormalized(c);
     if (current !== c) { loading = false; return; }
     const ac = ctx();
-    if (srcNode) { try { srcNode.stop(); } catch (e) {} }
+    stopAudio();
     srcNode = ac.createBufferSource();
     srcNode.buffer = buffer;
     const g = ac.createGain();
@@ -93,15 +101,29 @@ function pause() {
   if (!playing || !srcNode) return;
   const ac = ctx();
   pausedAt = ac.currentTime - startedAt;
-  try { srcNode.stop(); } catch (e) {}
-  playing = false;
-  srcNode = null;
+  stopAudio();
   el("playBtn").textContent = "▶ Play";
 }
 
 function togglePlay() {
   if (playing) pause();
   else play();
+}
+
+// ---------- swipe animation ----------
+function swipeOut(dir, done) {
+  const card = el("card");
+  card.classList.add(dir);
+  setTimeout(() => {
+    done();                       // advance to next chunk while off-screen
+    card.classList.remove(dir);
+    card.style.transition = "none";
+    card.style.transform = "";
+    void card.offsetWidth;        // reflow to reset without animating back
+    card.style.transition = "";
+    card.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 180 });
+    animating = false;
+  }, 200);
 }
 
 // ---------- UI ----------
@@ -127,23 +149,18 @@ async function loadManifest() {
     const resp = await fetch(cfg.MANIFEST_URL);
     if (!resp.ok) throw new Error("manifest " + resp.status);
     chunks = (await resp.json()).chunks;
+    // sequential order: episode, then file number (so every user starts from the start)
+    chunks.sort((a, b) => a.episode.localeCompare(b.episode) || a.file.localeCompare(b.file));
   } catch (e) {
     chunks = [];
     console.error("manifest load failed:", e);
   }
-  try {
-    const r = await fetch(cfg.WORKER_URL + "/api/judged");
-    const d = await r.json();
-    (d.judged || []).forEach((id) => judgedIds.add(id));
-  } catch (e) { /* worker offline -> empty dedup */ }
-
   ready = true;
   el("startBtn").textContent = "Start reviewing ▶";
   if (pendingStart) doStart();
 }
 
 function init() {
-  // attach handlers immediately (so the Start button always responds)
   el("btnYes").onclick = () => judge("yes");
   el("btnNo").onclick = () => judge("no");
   el("btnSkip").onclick = () => skip();
@@ -164,7 +181,7 @@ function init() {
   card.addEventListener("touchend", (e) => {
     const dx = e.changedTouches[0].clientX - sx;
     const dy = e.changedTouches[0].clientY - sy;
-    if (Math.abs(dx) < 40 && Math.abs(dy) < 40) return; // tap
+    if (Math.abs(dx) < 40 && Math.abs(dy) < 40) return;
     if (Math.abs(dx) > Math.abs(dy)) { dx > 0 ? judge("yes") : judge("no"); }
     else { dy < 0 ? skip() : null; }
   }, { passive: true });
@@ -177,7 +194,6 @@ function init() {
     else if (e.code === "Space") { e.preventDefault(); togglePlay(); }
   });
 
-  // load data in the background
   loadManifest();
 }
 
@@ -191,12 +207,12 @@ function next() {
     skippedLocal.clear();
     const p2 = chunks.filter((c) => !judgedIds.has(c.id));
     if (!p2.length) {
-      el("card").innerHTML = '<div class="done">🎉 No unjudged clips left right now.<br>Check back later or share the link with more friends!</div>';
+      el("card").innerHTML = '<div class="done">🎉 You reviewed every clip!<br>Thanks — share the link with more friends.</div>';
       return;
     }
-    return show(p2[Math.floor(Math.random() * p2.length)]);
+    return show(p2[0]); // first remaining in order
   }
-  show(pool[Math.floor(Math.random() * pool.length)]);
+  show(pool[0]); // first unjudged in order
 }
 
 function show(c) {
@@ -204,22 +220,22 @@ function show(c) {
   el("transcript").textContent = c.transcript;
   el("meta").textContent = c.episode + " · " + c.file + " · " + fmt(c.start) + "–" + fmt(c.end) + "s";
   el("epiLabel").textContent = c.episode;
-  if (srcNode) { try { srcNode.stop(); } catch (e) {} }
-  srcNode = null;
-  playing = false;
+  stopAudio();
   pausedAt = 0;
   el("playBtn").textContent = "▶ Play";
-  play(); // auto-play (normalized)
+  play();
 }
 
 function fmt(s) { return Number(s).toFixed(1); }
 
 function judge(verdict) {
-  if (!current) return;
+  if (!current || animating) return;
+  animating = true;
   flash(verdict === "yes" ? "✅" : "❌", verdict === "yes" ? "#22c55e" : "#ef4444");
   judgedIds.add(current.id);
   renderStats();
-  next();
+  stopAudio();
+  swipeOut(verdict === "yes" ? "slide-right" : "slide-left", () => next());
   fetch(cfg.WORKER_URL + "/api/judge", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -228,10 +244,12 @@ function judge(verdict) {
 }
 
 function skip() {
-  if (!current) return;
+  if (!current || animating) return;
+  animating = true;
   flash("⏭️", "#f59e0b");
   skippedLocal.add(current.id);
-  next();
+  stopAudio();
+  swipeOut("slide-up", () => next());
 }
 
 function renderStats() {
