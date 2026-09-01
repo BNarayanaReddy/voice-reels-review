@@ -1,18 +1,109 @@
-// Reel-style transcript reviewer.
-// Judgments are saved automatically to the Cloudflare Worker (no export step).
+// Reel-style transcript reviewer with loudness-normalized playback.
 // Swipe right = yes, left = no, up = skip. Buttons + arrow keys also work.
 
 const cfg = window.CONFIG;
 const params = new URLSearchParams(location.search);
 const reviewerName = (params.get("name") || "anon").trim() || "anon";
+// Audio is proxied through the Worker (adds CORS so Web Audio can normalize it).
+const AUDIO_BASE = cfg.WORKER_URL + "/audio/telugu-female-voice/";
 
 let chunks = [];          // all chunks from manifest
 let judgedIds = new Set();// chunk ids already judged yes/no (global)
-let skippedLocal = new Set(); // recently skipped this session (don't re-show immediately)
+let skippedLocal = new Set(); // recently skipped this session
 let current = null;
 
 const el = (id) => document.getElementById(id);
 
+// ---------- Web Audio (loudness normalization) ----------
+let audioCtx = null;
+function ctx() {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  return audioCtx;
+}
+
+const audioCache = new Map(); // id -> { buffer, gain }
+const TARGET_PEAK = 0.89;
+const MAX_GAIN = 4.0;
+
+async function loadNormalized(c) {
+  const hit = audioCache.get(c.id);
+  if (hit) return hit;
+  const url = AUDIO_BASE + c.episode + "/" + c.file;
+  const resp = await fetch(url);
+  if (!resp.ok) throw new Error("audio " + resp.status);
+  const arr = await resp.arrayBuffer();
+  const buffer = await ctx().decodeAudioData(arr);
+  let peak = 0;
+  const ch = buffer.getChannelData(0);
+  for (let i = 0; i < ch.length; i++) {
+    const a = Math.abs(ch[i]);
+    if (a > peak) peak = a;
+  }
+  const gain = peak > 0 ? Math.min(TARGET_PEAK / peak, MAX_GAIN) : 1.0;
+  const out = { buffer, gain };
+  audioCache.set(c.id, out);
+  return out;
+}
+
+let srcNode = null;
+let startedAt = 0;
+let pausedAt = 0;
+let playing = false;
+let loading = false;
+
+async function play() {
+  const c = current;
+  if (!c || loading) return;
+  loading = true;
+  el("playBtn").classList.add("loading");
+  el("playBtn").textContent = "Loading…";
+  try {
+    const { buffer, gain } = await loadNormalized(c);
+    if (current !== c) { loading = false; return; }
+    const ac = ctx();
+    if (srcNode) { try { srcNode.stop(); } catch (e) {} }
+    srcNode = ac.createBufferSource();
+    srcNode.buffer = buffer;
+    const g = ac.createGain();
+    g.gain.value = gain;
+    srcNode.connect(g).connect(ac.destination);
+    srcNode.start(0, pausedAt);
+    startedAt = ac.currentTime - pausedAt;
+    playing = true;
+    el("playBtn").textContent = "⏸ Pause";
+    srcNode.onended = () => {
+      if (!playing) return;
+      playing = false;
+      pausedAt = 0;
+      srcNode = null;
+      el("playBtn").textContent = "▶ Play";
+    };
+  } catch (e) {
+    el("playBtn").textContent = "▶ Play";
+  } finally {
+    loading = false;
+    el("playBtn").classList.remove("loading");
+  }
+}
+
+function pause() {
+  if (!playing || !srcNode) return;
+  const ac = ctx();
+  pausedAt = ac.currentTime - startedAt;
+  try { srcNode.stop(); } catch (e) {}
+  playing = false;
+  srcNode = null;
+  el("playBtn").textContent = "▶ Play";
+}
+
+function togglePlay() {
+  if (playing) pause();
+  else play();
+}
+
+// ---------- UI ----------
 function flash(symbol, color) {
   const f = el("verdict-flash");
   f.textContent = symbol;
@@ -31,11 +122,20 @@ async function init() {
     const r = await fetch(cfg.WORKER_URL + "/api/judged");
     const d = await r.json();
     (d.judged || []).forEach((id) => judgedIds.add(id));
-  } catch (e) { /* worker offline -> proceed with empty dedup */ }
+  } catch (e) { /* worker offline -> empty dedup */ }
 
   el("btnYes").onclick = () => judge("yes");
   el("btnNo").onclick = () => judge("no");
   el("btnSkip").onclick = () => skip();
+  el("playBtn").onclick = togglePlay;
+
+  // instructions overlay -> start (also unlocks audio)
+  el("startBtn").onclick = () => {
+    ctx().resume();
+    el("overlay").classList.add("hidden");
+    renderStats();
+    next();
+  };
 
   // swipe gestures
   const card = el("card");
@@ -46,7 +146,7 @@ async function init() {
   card.addEventListener("touchend", (e) => {
     const dx = e.changedTouches[0].clientX - sx;
     const dy = e.changedTouches[0].clientY - sy;
-    if (Math.abs(dx) < 40 && Math.abs(dy) < 40) return; // tap, not swipe
+    if (Math.abs(dx) < 40 && Math.abs(dy) < 40) return; // tap
     if (Math.abs(dx) > Math.abs(dy)) { dx > 0 ? judge("yes") : judge("no"); }
     else { dy < 0 ? skip() : null; }
   }, { passive: true });
@@ -56,21 +156,13 @@ async function init() {
     if (e.key === "ArrowRight") judge("yes");
     else if (e.key === "ArrowLeft") judge("no");
     else if (e.key === "ArrowUp") { e.preventDefault(); skip(); }
-    else if (e.code === "Space") {
-      e.preventDefault();
-      const a = el("audio");
-      a.paused ? a.play() : a.pause();
-    }
+    else if (e.code === "Space") { e.preventDefault(); togglePlay(); }
   });
-
-  renderStats();
-  next();
 }
 
 function next() {
   const pool = chunks.filter((c) => !judgedIds.has(c.id) && !skippedLocal.has(c.id));
   if (!pool.length) {
-    // everything judged (or only locally-skipped left) -> clear local skips and retry
     skippedLocal.clear();
     const p2 = chunks.filter((c) => !judgedIds.has(c.id));
     if (!p2.length) {
@@ -87,7 +179,13 @@ function show(c) {
   el("transcript").textContent = c.transcript;
   el("meta").textContent = c.episode + " · " + c.file + " · " + fmt(c.start) + "–" + fmt(c.end) + "s";
   el("epiLabel").textContent = c.episode;
-  el("audio").src = cfg.AUDIO_BASE + c.episode + "/" + c.file;
+  // reset playback state for the new chunk
+  if (srcNode) { try { srcNode.stop(); } catch (e) {} }
+  srcNode = null;
+  playing = false;
+  pausedAt = 0;
+  el("playBtn").textContent = "▶ Play";
+  play(); // auto-play (normalized)
 }
 
 function fmt(s) { return Number(s).toFixed(1); }
@@ -98,7 +196,6 @@ function judge(verdict) {
   judgedIds.add(current.id);
   renderStats();
   next();
-  // fire-and-forget save
   fetch(cfg.WORKER_URL + "/api/judge", {
     method: "POST",
     headers: { "Content-Type": "application/json" },

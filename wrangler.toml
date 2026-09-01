@@ -10,3 +10,8 @@ compatibility_date = "2025-01-01"
 binding = "DB"
 database_name = "pavani-judgments"
 database_id = "ffeb3426-cdc3-4248-a5c8-f5b9df8e3a6a"
+
+# R2 bucket binding for the audio proxy route (/audio/*).
+[[r2_buckets]]
+binding = "AUDIO"
+bucket_name = "pavani-thokaburlu-teluguvoice"

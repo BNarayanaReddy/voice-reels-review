@@ -1,11 +1,12 @@
-// Cloudflare Worker — judgments backend for the voice transcript reviewer.
-// Uses Cloudflare D1 (SQLite). Bind the D1 database as `DB` in wrangler.toml.
+// Cloudflare Worker — judgments backend + audio proxy for the voice reviewer.
+// Bindings (wrangler.toml): D1 as `DB`, R2 as `AUDIO`.
 //
 // Endpoints:
 //   POST /api/judge   { id, verdict, reviewer }  -> records a judgment
-//   GET  /api/judged                            -> { judged: [chunk ids judged yes/no] }
-//   GET  /api/export                            -> { judgments: {id: final verdict} }  (majority vote)
+//   GET  /api/judged                            -> { judged: [chunk ids] }
+//   GET  /api/export                            -> { judgments: {id: final verdict} }
 //   GET  /api/stats                             -> { stats: [...] }
+//   GET  /audio/<key>                           -> streams R2 object with CORS
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -26,6 +27,22 @@ export default {
     }
 
     const url = new URL(request.url);
+
+    // ---- audio proxy (R2) ----
+    if (url.pathname.startsWith("/audio/")) {
+      const key = url.pathname.slice("/audio/".length);
+      if (!key) return json({ error: "bad key" }, 400);
+      const obj = await env.AUDIO.get(key);
+      if (!obj) return json({ error: "not found" }, 404);
+      const ct = (obj.httpMetadata && obj.httpMetadata.contentType) || "audio/wav";
+      return new Response(obj.body, {
+        headers: {
+          ...CORS,
+          "Content-Type": ct,
+          "Cache-Control": "public, max-age=31536000, immutable",
+        },
+      });
+    }
 
     if (url.pathname === "/api/judge" && request.method === "POST") {
       try {
