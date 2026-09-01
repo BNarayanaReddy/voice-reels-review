@@ -27,8 +27,9 @@ function ctx() {
 }
 
 const audioCache = new Map();
-const TARGET_PEAK = 0.89;
-const MAX_GAIN = 4.0;
+const TARGET_RMS = 0.10;   // loudness target (~-20 dBFS) for consistent volume
+const MAX_GAIN = 8.0;
+const PEAK_LIMIT = 0.95;
 
 async function loadNormalized(c) {
   const hit = audioCache.get(c.id);
@@ -38,13 +39,19 @@ async function loadNormalized(c) {
   if (!resp.ok) throw new Error("audio " + resp.status);
   const arr = await resp.arrayBuffer();
   const buffer = await ctx().decodeAudioData(arr);
-  let peak = 0;
+  // loudness (RMS) normalization, peak-limited to avoid clipping
+  let sum = 0, peak = 0;
   const ch = buffer.getChannelData(0);
   for (let i = 0; i < ch.length; i++) {
-    const a = Math.abs(ch[i]);
+    const x = ch[i];
+    sum += x * x;
+    const a = Math.abs(x);
     if (a > peak) peak = a;
   }
-  const gain = peak > 0 ? Math.min(TARGET_PEAK / peak, MAX_GAIN) : 1.0;
+  const rms = Math.sqrt(sum / Math.max(1, ch.length));
+  let gain = rms > 1e-6 ? TARGET_RMS / rms : 1.0;
+  if (peak > 0 && gain * peak > PEAK_LIMIT) gain = PEAK_LIMIT / peak; // don't clip
+  gain = Math.min(Math.max(gain, 0.1), MAX_GAIN);
   const out = { buffer, gain };
   audioCache.set(c.id, out);
   return out;
