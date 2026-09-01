@@ -1,0 +1,12 @@
+# Cloudflare Worker configuration for the review backend.
+# Deploy with:  npx wrangler deploy
+name = "pavani-review"
+main = "worker.js"
+compatibility_date = "2025-01-01"
+
+# Bind your D1 database (create it first: npx wrangler d1 create pavani-judgments,
+# then paste its database_id here).
+[[d1_databases]]
+binding = "DB"
+database_name = "pavani-judgments"
+database_id = "ffeb3426-cdc3-4248-a5c8-f5b9df8e3a6a"
