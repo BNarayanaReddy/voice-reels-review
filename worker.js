@@ -46,13 +46,13 @@ export default {
 
     if (url.pathname === "/api/judge" && request.method === "POST") {
       try {
-        const { id, verdict, reviewer, instagram } = await request.json();
+        const { id, verdict, reviewer, instagram, edited } = await request.json();
         if (!id || !["yes", "no", "skip"].includes(verdict)) {
           return json({ error: "bad request" }, 400);
         }
         await env.DB.prepare(
-          "INSERT INTO judgments (chunk_id, verdict, reviewer, instagram_id, ts) VALUES (?, ?, ?, ?, ?)"
-        ).bind(id, verdict, reviewer || "anon", instagram || null, Date.now()).run();
+          "INSERT INTO judgments (chunk_id, verdict, reviewer, instagram_id, edited_transcript, ts) VALUES (?, ?, ?, ?, ?, ?)"
+        ).bind(id, verdict, reviewer || "anon", instagram || null, edited || null, Date.now()).run();
         return json({ ok: true });
       } catch (e) {
         return json({ error: String(e) }, 500);

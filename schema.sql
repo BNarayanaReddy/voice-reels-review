@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS judgments (
   verdict  TEXT NOT NULL,
   reviewer TEXT,
   instagram_id TEXT,
+  edited_transcript TEXT,
   ts       INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_judgments_chunk ON judgments(chunk_id);

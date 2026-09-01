@@ -86,6 +86,7 @@ async function play() {
     stopAudio();
     srcNode = ac.createBufferSource();
     srcNode.buffer = buffer;
+    srcNode.loop = true; // keep playing so they can correct while listening
     const g = ac.createGain();
     g.gain.value = gain;
     srcNode.connect(g).connect(ac.destination);
@@ -111,7 +112,9 @@ async function play() {
 function pause() {
   if (!playing || !srcNode) return;
   const ac = ctx();
-  pausedAt = ac.currentTime - startedAt;
+  const elapsed = ac.currentTime - startedAt;
+  const dur = srcNode.buffer ? srcNode.buffer.duration : 1;
+  pausedAt = elapsed % dur; // handle looping
   stopAudio();
   el("playBtn").textContent = "▶ Play";
 }
@@ -229,13 +232,16 @@ function init() {
     else el("startBtn").textContent = "Loading…";
   };
 
-  // swipe gestures
+  // swipe gestures (ignore when editing the transcript)
   const card = el("card");
-  let sx = 0, sy = 0;
+  let sx = 0, sy = 0, fromTextarea = false;
   card.addEventListener("touchstart", (e) => {
+    fromTextarea = !!(e.target && e.target.closest && e.target.closest("textarea"));
+    if (fromTextarea) return;
     sx = e.touches[0].clientX; sy = e.touches[0].clientY;
   }, { passive: true });
   card.addEventListener("touchend", (e) => {
+    if (fromTextarea) { fromTextarea = false; return; }
     const dx = e.changedTouches[0].clientX - sx;
     const dy = e.changedTouches[0].clientY - sy;
     if (Math.abs(dx) < 40 && Math.abs(dy) < 40) return;
@@ -243,8 +249,9 @@ function init() {
     else { dy < 0 ? skip() : null; }
   }, { passive: true });
 
-  // keyboard
+  // keyboard (ignore while typing in the transcript)
   document.addEventListener("keydown", (e) => {
+    if (e.target && e.target.tagName === "TEXTAREA") return;
     if (e.key === "ArrowRight") judge("yes");
     else if (e.key === "ArrowLeft") judge("no");
     else if (e.key === "ArrowUp") { e.preventDefault(); skip(); }
@@ -274,7 +281,7 @@ function next() {
 
 function show(c) {
   current = c;
-  el("transcript").textContent = c.transcript;
+  el("transcript").value = c.transcript;
   el("meta").textContent = c.episode + " · " + c.file + " · " + fmt(c.start) + "–" + fmt(c.end) + "s";
   el("epiLabel").textContent = c.episode;
   stopAudio();
@@ -287,10 +294,21 @@ function fmt(s) { return Number(s).toFixed(1); }
 
 function judge(verdict) {
   if (!current || animating) return;
+  const c = current;
+  const edited = (el("transcript").value || "").trim();
+  // reject if empty or contains English letters (must be Telugu script)
+  if (!edited || /[a-zA-Z]/.test(edited)) {
+    flash("🔤", "Telugu only", "#ef4444");
+    const ta = el("transcript");
+    ta.classList.add("invalid");
+    ta.focus();
+    setTimeout(() => ta.classList.remove("invalid"), 900);
+    return;
+  }
   animating = true;
   if (verdict === "yes") flash("✅", "Good", "#22c55e");
   else flash("❌", "Bad", "#ef4444");
-  judgedIds.add(current.id);
+  judgedIds.add(c.id);
   myCount++;
   renderStats();
   stopAudio();
@@ -298,7 +316,7 @@ function judge(verdict) {
   fetch(cfg.WORKER_URL + "/api/judge", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ id: current.id, verdict, reviewer: reviewerName, instagram: myInstagram }),
+    body: JSON.stringify({ id: c.id, verdict, reviewer: reviewerName, instagram: myInstagram, edited }),
   }).catch(() => {});
 }
 

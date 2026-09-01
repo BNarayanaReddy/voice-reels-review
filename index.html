@@ -39,11 +39,16 @@
     #card.slide-up { transform: translateY(-120%); opacity: 0; }
     .meta { font-size: 0.72rem; color: var(--muted); margin-bottom: 8px; }
     .tlabel { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 4px; }
+    .tlabel .edit-hint { color: #5b6070; font-size: 0.62rem; text-transform: none; letter-spacing: 0; }
     .transcript {
-      font-size: 1.35rem; line-height: 1.65; font-weight: 500; text-align: center;
-      white-space: pre-wrap; word-break: break-word; max-height: 40vh; overflow-y: auto;
-      padding: 4px 6px;
+      font-size: 1.3rem; line-height: 1.65; font-weight: 500; text-align: center;
+      word-break: break-word; width: 90%; max-width: 480px; min-height: 6rem;
+      background: transparent; border: 1px dashed #2c3245; border-radius: 10px;
+      color: var(--text); padding: 8px 10px; resize: vertical;
+      font-family: inherit;
     }
+    .transcript:focus { outline: none; border-color: #4b5568; background: #0f1116; }
+    .transcript.invalid { border-color: #ef4444 !important; }
     .play {
       margin-top: 18px; padding: 12px 34px; border: none; border-radius: 999px;
       background: #2b3245; color: #fff; font-size: 1rem; font-weight: 700; cursor: pointer;
@@ -124,8 +129,8 @@
 
   <div id="card">
     <div class="meta" id="meta"></div>
-    <div class="tlabel">Transcript</div>
-    <div class="transcript" id="transcript"></div>
+    <div class="tlabel">Transcript <span class="edit-hint">· tap to edit</span></div>
+    <textarea class="transcript" id="transcript" rows="4" spellcheck="false" lang="te"></textarea>
     <button class="play" id="playBtn">▶ Play</button>
   </div>
 
@@ -149,7 +154,8 @@
       <div class="row"><span class="glyph">👉</span><span><b>Swipe right</b> — ✅ Correct (audio matches the text)</span></div>
       <div class="row"><span class="glyph">👈</span><span><b>Swipe left</b> — ❌ Very bad (doesn't match / garbled)</span></div>
       <div class="row"><span class="glyph">👆</span><span><b>Swipe up</b> — ⏭️ Skip</span></div>
-      <div class="row"><span class="glyph">▶️</span><span>Tap <b>Play</b> (or press <b>Space</b>) to listen again</span></div>
+      <div class="row"><span class="glyph">✏️</span><span><b>Tap the transcript to correct it</b> — type in English letters and your keyboard converts to Telugu (Gboard). Telugu script only.</span></div>
+      <div class="row"><span class="glyph">▶️</span><span>Tap <b>Play</b> (or press <b>Space</b>) — audio loops so you can correct while listening</span></div>
       <div class="insta">
         <label for="instaInput">Instagram ID <span class="opt">(optional — for bounty contact)</span></label>
         <input id="instaInput" type="text" placeholder="@yourhandle" maxlength="40" autocomplete="off">
@@ -160,7 +166,7 @@
     </div>
   </div>
 
-  <script src="config.js?v=5"></script>
-  <script src="app.js?v=5"></script>
+  <script src="config.js?v=6"></script>
+  <script src="app.js?v=6"></script>
 </body>
 </html>
