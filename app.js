@@ -1,16 +1,17 @@
-// Reel-style transcript reviewer with loudness-normalized playback.
-// Swipe right = yes, left = no, up = skip. Buttons + arrow keys also work.
+// Reel-style audio-vs-transcript reviewer with loudness-normalized playback.
+// Swipe right = Correct, left = Very bad, up = Skip. Buttons + arrow keys work.
 
 const cfg = window.CONFIG;
 const params = new URLSearchParams(location.search);
 const reviewerName = (params.get("name") || "anon").trim() || "anon";
-// Audio is proxied through the Worker (adds CORS so Web Audio can normalize it).
-const AUDIO_BASE = cfg.WORKER_URL + "/audio/telugu-female-voice/";
 
 let chunks = [];          // all chunks from manifest
 let judgedIds = new Set();// chunk ids already judged yes/no (global)
 let skippedLocal = new Set(); // recently skipped this session
 let current = null;
+let ready = false;        // manifest loaded?
+let pendingStart = false; // user tapped start before manifest was ready
+let started = false;
 
 const el = (id) => document.getElementById(id);
 
@@ -30,7 +31,7 @@ const MAX_GAIN = 4.0;
 async function loadNormalized(c) {
   const hit = audioCache.get(c.id);
   if (hit) return hit;
-  const url = AUDIO_BASE + c.episode + "/" + c.file;
+  const url = cfg.WORKER_URL + "/audio/telugu-female-voice/" + c.episode + "/" + c.file;
   const resp = await fetch(url);
   if (!resp.ok) throw new Error("audio " + resp.status);
   const arr = await resp.arrayBuffer();
@@ -112,29 +113,46 @@ function flash(symbol, color) {
   setTimeout(() => { f.style.opacity = "0"; }, 180);
 }
 
-async function init() {
-  // manifest
-  const resp = await fetch(cfg.MANIFEST_URL);
-  chunks = (await resp.json()).chunks;
+function doStart() {
+  if (started) return;
+  started = true;
+  try { ctx().resume(); } catch (e) {}
+  el("overlay").classList.add("hidden");
+  renderStats();
+  next();
+}
 
-  // globally-judged ids
+async function loadManifest() {
+  try {
+    const resp = await fetch(cfg.MANIFEST_URL);
+    if (!resp.ok) throw new Error("manifest " + resp.status);
+    chunks = (await resp.json()).chunks;
+  } catch (e) {
+    chunks = [];
+    console.error("manifest load failed:", e);
+  }
   try {
     const r = await fetch(cfg.WORKER_URL + "/api/judged");
     const d = await r.json();
     (d.judged || []).forEach((id) => judgedIds.add(id));
   } catch (e) { /* worker offline -> empty dedup */ }
 
+  ready = true;
+  el("startBtn").textContent = "Start reviewing ▶";
+  if (pendingStart) doStart();
+}
+
+function init() {
+  // attach handlers immediately (so the Start button always responds)
   el("btnYes").onclick = () => judge("yes");
   el("btnNo").onclick = () => judge("no");
   el("btnSkip").onclick = () => skip();
   el("playBtn").onclick = togglePlay;
 
-  // instructions overlay -> start (also unlocks audio)
   el("startBtn").onclick = () => {
-    ctx().resume();
-    el("overlay").classList.add("hidden");
-    renderStats();
-    next();
+    pendingStart = true;
+    if (ready) doStart();
+    else el("startBtn").textContent = "Loading…";
   };
 
   // swipe gestures
@@ -158,15 +176,22 @@ async function init() {
     else if (e.key === "ArrowUp") { e.preventDefault(); skip(); }
     else if (e.code === "Space") { e.preventDefault(); togglePlay(); }
   });
+
+  // load data in the background
+  loadManifest();
 }
 
 function next() {
+  if (!chunks.length) {
+    el("card").innerHTML = '<div class="done">⚠️ Could not load the clip list.<br>Please refresh the page.</div>';
+    return;
+  }
   const pool = chunks.filter((c) => !judgedIds.has(c.id) && !skippedLocal.has(c.id));
   if (!pool.length) {
     skippedLocal.clear();
     const p2 = chunks.filter((c) => !judgedIds.has(c.id));
     if (!p2.length) {
-      el("card").innerHTML = '<div class="done">🎉 No unjudged chunks left right now.<br>Check back later or share the link with more friends!</div>';
+      el("card").innerHTML = '<div class="done">🎉 No unjudged clips left right now.<br>Check back later or share the link with more friends!</div>';
       return;
     }
     return show(p2[Math.floor(Math.random() * p2.length)]);
@@ -179,7 +204,6 @@ function show(c) {
   el("transcript").textContent = c.transcript;
   el("meta").textContent = c.episode + " · " + c.file + " · " + fmt(c.start) + "–" + fmt(c.end) + "s";
   el("epiLabel").textContent = c.episode;
-  // reset playback state for the new chunk
   if (srcNode) { try { srcNode.stop(); } catch (e) {} }
   srcNode = null;
   playing = false;

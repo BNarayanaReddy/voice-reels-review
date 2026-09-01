@@ -33,6 +33,7 @@
       overflow: hidden;
     }
     .meta { font-size: 0.72rem; color: var(--muted); margin-bottom: 8px; }
+    .tlabel { font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 4px; }
     .transcript {
       font-size: 1.35rem; line-height: 1.65; font-weight: 500; text-align: center;
       white-space: pre-wrap; word-break: break-word; max-height: 40vh; overflow-y: auto;
@@ -100,31 +101,32 @@
 
   <div id="card">
     <div class="meta" id="meta"></div>
+    <div class="tlabel">Transcript</div>
     <div class="transcript" id="transcript"></div>
     <button class="play" id="playBtn">▶ Play</button>
     <div id="verdict-flash"></div>
   </div>
 
   <div class="hint">
-    Swipe <b>right</b> = Yes &nbsp;·&nbsp; <b>left</b> = No &nbsp;·&nbsp; <b>up</b> = Skip
+    Swipe <b>right</b> = Correct &nbsp;·&nbsp; <b>left</b> = Very bad &nbsp;·&nbsp; <b>up</b> = Skip
     &nbsp;|&nbsp; Keys: <b>→</b>/<b>←</b>/<b>↑</b> &nbsp;·&nbsp; <b>Space</b> = play/pause
   </div>
 
   <div id="bottombar">
-    <button class="btn no" id="btnNo">❌ No</button>
+    <button class="btn no" id="btnNo">❌ Very bad</button>
     <button class="btn skip" id="btnSkip">⏭️ Skip</button>
-    <button class="btn yes" id="btnYes">✅ Yes</button>
+    <button class="btn yes" id="btnYes">✅ Correct</button>
   </div>
 
   <div id="overlay">
     <div class="overlay-card">
       <h1>🎧 Voice Reels Review</h1>
-      <p>Listen to each Telugu clip and rate the audio quality.</p>
-      <div class="row"><span class="glyph">👉</span><span><b>Swipe right</b> — Yes, sounds good</span></div>
-      <div class="row"><span class="glyph">👈</span><span><b>Swipe left</b> — No, bad audio</span></div>
-      <div class="row"><span class="glyph">👆</span><span><b>Swipe up</b> — Skip</span></div>
+      <p>You'll see a <b>transcript</b> and hear an <b>audio</b> clip. Judge whether the audio matches the transcript:</p>
+      <div class="row"><span class="glyph">👉</span><span><b>Swipe right</b> — ✅ Correct (audio matches the text)</span></div>
+      <div class="row"><span class="glyph">👈</span><span><b>Swipe left</b> — ❌ Very bad (doesn't match / garbled)</span></div>
+      <div class="row"><span class="glyph">👆</span><span><b>Swipe up</b> — ⏭️ Skip</span></div>
       <div class="row"><span class="glyph">▶️</span><span>Tap <b>Play</b> (or press <b>Space</b>) to listen again</span></div>
-      <p class="keys">Keyboard: <b>→</b> yes · <b>←</b> no · <b>↑</b> skip · <b>Space</b> play/pause</p>
+      <p class="keys">Keyboard: <b>→</b> correct · <b>←</b> very bad · <b>↑</b> skip · <b>Space</b> play/pause</p>
       <button id="startBtn">Start reviewing ▶</button>
     </div>
   </div>
