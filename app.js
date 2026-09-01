@@ -19,7 +19,6 @@ let episodes = new Map(); // episode -> [chunk, ...] in order
 let currentEpisode = null;
 let myCount = 0;          // reviews done this session (yes/no)
 let myInstagram = "";     // optional, persisted in localStorage
-let teluguTimer = null;    // debounce for Latin->Telugu transliteration
 
 const el = (id) => document.getElementById(id);
 
@@ -235,14 +234,16 @@ function init() {
     el("instaInput").value = saved;
   } catch (e) {}
 
-  // Latin -> Telugu transliteration (debounced so a full word converts correctly,
-  // and the cursor stays in place while typing).
+  // Latin -> Telugu transliteration: convert only when a word boundary
+  // (space / punctuation) is typed, so slow typing isn't converted mid-word.
   el("transcript").addEventListener("input", () => {
     if (!window.Sanscript) return;
     const ta = el("transcript");
-    if (!/[a-zA-Z]/.test(ta.value)) return;
-    if (teluguTimer) clearTimeout(teluguTimer);
-    teluguTimer = setTimeout(() => { teluguTimer = null; transliterateNow(ta); }, 600);
+    const pos = ta.selectionStart || 0;
+    const lastChar = ta.value.charAt(pos - 1);
+    if (lastChar && !/[a-zA-Z]/.test(lastChar)) {
+      transliterateNow(ta);
+    }
   });
 
   el("btnYes").onclick = () => judge("yes");
@@ -319,8 +320,8 @@ function fmt(s) { return Number(s).toFixed(1); }
 function judge(verdict) {
   if (!current || animating) return;
   const c = current;
-  // flush any pending transliteration before validating
-  if (teluguTimer) { clearTimeout(teluguTimer); teluguTimer = null; transliterateNow(el("transcript")); }
+  // convert any leftover Latin before validating (e.g. they swiped right after typing)
+  transliterateNow(el("transcript"));
   const edited = (el("transcript").value || "").trim();
   // reject if empty or contains English letters (must be Telugu script)
   if (!edited || /[a-zA-Z]/.test(edited)) {
