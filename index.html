@@ -115,11 +115,6 @@
       border: 1px solid #262b38; border-radius: 10px; padding: 10px 12px; background: #12141b;
     }
     .overlay-card .disclaimer b { color: #f59e0b; }
-    .overlay-card .telnote {
-      margin-top: 12px; font-size: 0.78rem; color: var(--muted); line-height: 1.5;
-      border: 1px solid #262b38; border-radius: 10px; padding: 9px 12px; background: #12141b;
-    }
-    .overlay-card .telnote b { color: #8ab4ff; }
     @media (max-width: 420px) {
       .overlay-card { padding: 16px 14px; }
       .overlay-card h1 { font-size: 1.15rem; }
@@ -166,8 +161,7 @@
       <div class="row"><span class="glyph">👉</span><span><b>Swipe right</b> — ✅ Correct (audio matches the text)</span></div>
       <div class="row"><span class="glyph">👈</span><span><b>Swipe left</b> — ❌ Very bad (doesn't match / garbled)</span></div>
       <div class="row"><span class="glyph">👆</span><span><b>Swipe up</b> — ⏭️ Skip</span></div>
-      <div class="row"><span class="glyph">✏️</span><span><b>Tap the transcript to correct it</b> — type English letters and they <b>auto-convert to Telugu</b> as you type.</span></div>
-      <p class="telnote">⌨️ <b>Telugu typing:</b> just type in English (e.g. <b>namaste</b> → నమస్తే). Or on your phone: <b>Gboard → Settings → Languages → add Telugu</b>, then switch with the 🌐 globe key.</p>
+      <div class="row"><span class="glyph">✏️</span><span><b>Tap the transcript to correct it</b> if the audio doesn't match.</span></div>
       <div class="row"><span class="glyph">▶️</span><span>Tap <b>Play</b> (or press <b>Space</b>) — audio loops so you can correct while listening</span></div>
       <div class="insta">
         <label for="instaInput">Instagram ID <span class="opt">(optional — for bounty contact)</span></label>
@@ -179,8 +173,7 @@
     </div>
   </div>
 
-  <script src="sanscript.js"></script>
-  <script src="config.js?v=9"></script>
-  <script src="app.js?v=9"></script>
+  <script src="config.js?v=10"></script>
+  <script src="app.js?v=10"></script>
 </body>
 </html>

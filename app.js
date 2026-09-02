@@ -151,19 +151,6 @@ function flash(emoji, word, color) {
   flashTimer = setTimeout(() => f.classList.remove("pop"), 500);
 }
 
-// Convert Latin -> Telugu in the transcript, keeping the cursor where it was.
-function transliterateNow(ta) {
-  const val = ta.value;
-  if (!window.Sanscript || !/[a-zA-Z]/.test(val)) return;
-  const pos = typeof ta.selectionStart === "number" ? ta.selectionStart : val.length;
-  try {
-    const before = window.Sanscript.t(val.slice(0, pos), "itrans", "telugu");
-    const after = window.Sanscript.t(val.slice(pos), "itrans", "telugu");
-    ta.value = before + after;
-    ta.setSelectionRange(before.length, before.length);
-  } catch (e) { /* leave as-is; the Telugu-only validation will reject it */ }
-}
-
 // ---------- episode assignment ----------
 function buildEpisodes() {
   episodes = new Map();
@@ -233,18 +220,6 @@ function init() {
     myInstagram = saved;
     el("instaInput").value = saved;
   } catch (e) {}
-
-  // Latin -> Telugu transliteration: convert only when a word boundary
-  // (space / punctuation) is typed, so slow typing isn't converted mid-word.
-  el("transcript").addEventListener("input", () => {
-    if (!window.Sanscript) return;
-    const ta = el("transcript");
-    const pos = ta.selectionStart || 0;
-    const lastChar = ta.value.charAt(pos - 1);
-    if (lastChar && !/[a-zA-Z]/.test(lastChar)) {
-      transliterateNow(ta);
-    }
-  });
 
   el("btnYes").onclick = () => judge("yes");
   el("btnNo").onclick = () => judge("no");
@@ -320,12 +295,10 @@ function fmt(s) { return Number(s).toFixed(1); }
 function judge(verdict) {
   if (!current || animating) return;
   const c = current;
-  // convert any leftover Latin before validating (e.g. they swiped right after typing)
-  transliterateNow(el("transcript"));
   const edited = (el("transcript").value || "").trim();
-  // reject if empty or contains English letters (must be Telugu script)
-  if (!edited || /[a-zA-Z]/.test(edited)) {
-    flash("🔤", "Telugu only", "#ef4444");
+  // only reject an empty transcript (English/codemix is allowed now)
+  if (!edited) {
+    flash("✏️", "Add transcript", "#ef4444");
     const ta = el("transcript");
     ta.classList.add("invalid");
     ta.focus();
